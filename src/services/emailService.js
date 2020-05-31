@@ -1,7 +1,9 @@
 import axios from 'axios'
 
 class EmailService {
-    constructor() {}
+    constructor(log) {
+        this.log = log
+    }
 
     async send(to, text, html) {
         let data = {
@@ -12,7 +14,7 @@ class EmailService {
             html
         }
 
-        console.log("Going to send an email..", data.text)
+        this.log.info("Going to send an email..", data.text)
 
         try {
             return await axios.post(process.env.EMAIL_API_URL, data);

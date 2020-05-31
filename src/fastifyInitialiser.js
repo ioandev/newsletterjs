@@ -45,11 +45,11 @@ async function connectToDatabases(fastify) {
 async function decorateFastifyInstance(fastify) {
     const db = fastify.mongo.db
 
-    const emailService = new EmailService()
+    const emailService = new EmailService(fastify.log)
     fastify.decorate('emailService', emailService)
 
     const linkCollection = await db.createCollection('links')
-    const linkService = new LinkService(linkCollection)
+    const linkService = new LinkService(linkCollection, fastify.log)
     await linkService.ensureIndexes(db)
     fastify.decorate('linkService', linkService)
 

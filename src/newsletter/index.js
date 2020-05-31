@@ -60,7 +60,7 @@ async function confirmSubscription(req, res) {
     }
     const email = record.email
     if (await this.subscriptionService.doesSubscriptionExist(email)) {
-        console.warn(`Subscription already exists for email ${email}`)
+        req.log.warn(`Subscription already exists for email ${email}`)
         return
     }
     const name = record.name
@@ -70,9 +70,9 @@ async function confirmSubscription(req, res) {
         subscribed_at: new Date()
     };
 
-    console.log(`Inserting new subscription for email ${email} and name ${name}`)
+    req.log.info(`Inserting new subscription for email ${email} and name ${name}`)
     await this.subscriptionService.insertSubscription(document)
-    console.log(`Removing confirmation link for email ${email} and name ${name}`)
+    req.log.info(`Removing confirmation link for email ${email} and name ${name}`)
     await this.linkService.removeConfirmationLink(email)
 
     return {
@@ -88,10 +88,10 @@ async function removeSubscription(req, res) {
     }
     const email = record.email
     const name = record.name
-    console.log(`Removing link for email ${email}`)
+    req.log.info(`Removing link for email ${email}`)
     await this.linkService.removeAllLinksForEmail(email)
 
-    console.log(`Removing subscription for email ${email}`)
+    req.log.info(`Removing subscription for email ${email}`)
     await this.subscriptionService.removeSubscription(email)
 
     const survey_link = process.env.UNSUBSCRIBE_FEEDBACK_URL

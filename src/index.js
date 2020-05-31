@@ -6,9 +6,6 @@ dotenv.config({
 import Fastify from 'fastify'
 import fastifyInitialiser from './fastifyInitialiser'
 
-if (process.env.DEBUG) {
-    console.log("DEBUG mode!")
-}
 
 const hostname = process.env.HOSTNAME
 const port = process.env.PORT
@@ -16,6 +13,9 @@ if (!hostname || !port) {
     throw "Could not find configuration details to set up the web server: hostname, port"
 }
 async function main() {
+    if (process.env.DEBUG) {
+        console.log("DEBUG mode!")
+    }
     const app = Fastify({
         logger: true,
         pluginTimeout: 10000
