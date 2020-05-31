@@ -2,8 +2,9 @@ export const TYPE_CONFIRMATION = "confirmation"
 export const TYPE_UNSUBSCRIBE = "unsubscribe"
 
 class LinkService {
-    constructor(collection) {
+    constructor(collection, log) {
         this.collection = collection;
+        this.log = log
     }
 
     async getConfirmationLinkByThumbprint(thumbprint) {
@@ -30,7 +31,7 @@ class LinkService {
         }
 
         document.type = TYPE_CONFIRMATION
-        console.log(`Did not find a confirmation record for email ${email}, inserting one with thumprint ${document.thumbprint}`)
+        this.log.info(`Did not find a confirmation record for email ${email}, inserting one with thumprint ${document.thumbprint}`)
         await this.collection.insertOne(document, {
             w: 1
         })
@@ -48,7 +49,7 @@ class LinkService {
         }
 
         document.type = TYPE_UNSUBSCRIBE
-        console.log(`Did not find an unsubscribe link for email ${email}, inserting one with thumprint ${document.thumbprint}`)
+        this.log.info(`Did not find an unsubscribe link for email ${email}, inserting one with thumprint ${document.thumbprint}`)
         await this.collection.insertOne(document, {
             w: 1
         })
