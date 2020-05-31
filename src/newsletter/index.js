@@ -23,11 +23,16 @@ module.exports = async function (fastify, opts) {
     }, removeSubscription)
 }
 
-async function addSubscription(req, res) {
+async function addSubscription(req, reply) {
     const {name, email} = req.body;
 
     if (await this.subscriptionService.doesSubscriptionExist(email)) {
-        throw `A subscription already exists for email address ${email}`
+        reply
+            .code(400)
+            .send({
+                error: `A subscription already exists for email address ${email}`
+            })
+        return
     }
     const confirmThumbprint =
         await this.linkService.insertConfirmationLinkifNotAlreadyExists(email, {
@@ -51,12 +56,17 @@ async function addSubscription(req, res) {
     }
 }
 
-async function confirmSubscription(req, res) {
+async function confirmSubscription(req, reply) {
     const {thumbprint} = req.query;
 
     const record = await this.linkService.getConfirmationLinkByThumbprint(thumbprint)
     if (!record) {
-        throw `No confirmation could be found for thumbprint ${thumbprint}. Either it never did, or it was used already.`
+        reply
+            .code(404)
+            .send({
+                error: `No confirmation could be found for thumbprint ${thumbprint}. Either it never did, or it was used already.`
+            })
+        return
     }
     const email = record.email
     if (await this.subscriptionService.doesSubscriptionExist(email)) {
@@ -80,11 +90,16 @@ async function confirmSubscription(req, res) {
     }
 }
 
-async function removeSubscription(req, res) {
+async function removeSubscription(req, reply) {
     const {thumbprint} = req.query;
     const record = await this.linkService.getUnsubscribeLinkByThumbprint(thumbprint)
     if (!record) {
-        throw `No confirmation could be found for thumbprint ${thumbprint}. Either it never did, or it was used already.`
+        reply
+            .code(404)
+            .send({
+                error: `No subscription could be found for thumbprint ${thumbprint}. Either it never did, or it was used already.`
+            })
+        return
     }
     const email = record.email
     const name = record.name
