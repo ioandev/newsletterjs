@@ -1,0 +1,106 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`emailGenerator generateConfirmationEmail is consistent 1`] = `
+Object {
+  "html": <p>
+  Hi Alex Michael,
+</p>
+<p>
+  Thanks for signing up. Click the link below to confirm your subscription and you'll be on your way.
+</p>
+<p>
+  <a class="confirm"
+     href="https://confirm_link"
+  >
+    Confirm your subscription
+  </a>
+</p>
+<p>
+  It's good to have you!
+</p>
+<p>
+  This wasn't you?
+  <a class="unsubscribe"
+     href="https://unsubscribe_link"
+  >
+    Unsubscribe here.
+  </a>
+</p>
+<p>
+  Thanks,
+</p>
+<p>
+  Ioan Biticu.
+</p>,
+  "text": "Hi Alex Michael,
+
+Thanks for signing up. Click the link below to confirm your subscription and
+you'll be on your way.
+
+Confirm your subscription [https://confirm_link]
+
+It's good to have you!
+
+This wasn't you? Unsubscribe here. [https://unsubscribe_link]
+
+Thanks,
+
+Ioan Biticu.",
+}
+`;
+
+exports[`emailGenerator generateUnsubscribeFeedbackEmail is consistent 1`] = `
+Object {
+  "html": <p>
+  Hi Alex Michael,
+</p>
+<p>
+  Sorry to see you go!
+</p>
+<p>
+  <span>
+    Can you do me a favour?
+  </span>
+  <a class="survey"
+     href="https://survey_link"
+  >
+    Fill in this survey
+  </a>
+  <span>
+    (it's anonymous) I am curious why you've left, and if I could've done anything different
+  </span>
+</p>
+<p>
+  If you didn't intend to unsubscribe, visit
+  <a class="homepage"
+     href="https://homepage_link"
+  >
+    our homepage
+  </a>
+</p>
+<p>
+  Hope we'll see each other again!
+</p>
+<p>
+  Thanks,
+</p>
+<p>
+  Ioan Biticu.
+</p>,
+  "text": "Hi Alex Michael,
+
+Sorry to see you go!
+
+Can you do me a favour? Fill in this survey [https://survey_link](it's
+anonymous) I am curious why you've left, and if I could've done anything
+different
+
+If you didn't intend to unsubscribe, visit our homepage [https://homepage_link]
+
+Hope we'll see each other again!
+
+Thanks,
+
+Ioan Biticu.",
+}
+`;

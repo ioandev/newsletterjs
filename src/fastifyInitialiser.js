@@ -3,6 +3,7 @@ import fp from "fastify-plugin"
 import LinkService from "./services/linkService"
 import EmailService from "./services/emailService"
 import SubscriptionService from "./services/subscriptionService"
+import randomstring from "randomstring"
 
 const schema = {
     type: 'object',
@@ -13,6 +14,13 @@ const schema = {
         },
     },
     additionalProperties: false
+}
+
+function uniqueThumbprintGenerator() {
+    return randomstring.generate({
+        length: 40,
+        charset: 'alphabetic'
+    });
 }
 
 function getSwaggerOptions() {
@@ -56,6 +64,9 @@ async function decorateFastifyInstance(fastify) {
     const subscriptionCollection = await db.createCollection('subscriptions')
     const subscriptionService = new SubscriptionService(subscriptionCollection)
     fastify.decorate('subscriptionService', subscriptionService)
+
+    // utility
+    fastify.decorate('uniqueThumbprintGenerator', uniqueThumbprintGenerator)
 }
 
 async function decorateErrorHandlers(fastify) {
@@ -71,7 +82,7 @@ async function decorateErrorHandlers(fastify) {
         reply
             .code(404)
             .type('text/plain')
-            .send('Not found!')
+            .send(`Url ${request.url} couldn't be found!`)
     })
 }
 

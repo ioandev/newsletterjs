@@ -9,7 +9,6 @@ import {
     thumbprint as thumbprintSchema
 }
 from './schemas'
-import randomstring from "randomstring"
 
 module.exports = async function (fastify, opts) {
     fastify.post('/subscribe', {
@@ -23,28 +22,36 @@ module.exports = async function (fastify, opts) {
     }, removeSubscription)
 }
 
+module.exports[Symbol.for('plugin-meta')] = {
+    decorators: {
+        fastify: [
+            'uniqueThumbprintGenerator'
+        ]
+    }
+}
+
 async function addSubscription(req, reply) {
     const {name, email} = req.body;
 
     if (await this.subscriptionService.doesSubscriptionExist(email)) {
         reply
             .code(400)
-            .send({
-                error: `A subscription already exists for email address ${email}`
-            })
+                .send({
+                    error: `A subscription already exists for email address ${email}`
+                })
         return
     }
     const confirmThumbprint =
         await this.linkService.insertConfirmationLinkifNotAlreadyExists(email, {
             name,
             email,
-            thumbprint: generateThumbprint()
+            thumbprint: this.uniqueThumbprintGenerator()
         })
     const unsubscribeThumbprint =
         await this.linkService.insertUnsubscribeLinkifNotAlreadyExists(email, {
             name,
             email,
-            thumbprint: generateThumbprint()
+            thumbprint: this.uniqueThumbprintGenerator()
         })
     const confirmLink = process.env.NEWSLETTER_CONFIRM_URL.replace("[THUMBPRINT]", confirmThumbprint)
     const unsubscribeLink = process.env.NEWSLETTER_UNSUBSCRIBE_URL.replace("[THUMBPRINT]", unsubscribeThumbprint)
@@ -61,16 +68,21 @@ async function confirmSubscription(req, reply) {
 
     const record = await this.linkService.getConfirmationLinkByThumbprint(thumbprint)
     if (!record) {
+        let error = `No confirmation could be found for thumbprint ${thumbprint}. Either it never did, or it was used already.`
+        req.log.warn(error)
         reply
-            .code(404)
-            .send({
-                error: `No confirmation could be found for thumbprint ${thumbprint}. Either it never did, or it was used already.`
-            })
+            .code(400)
+            .send({ error })
         return
     }
     const email = record.email
     if (await this.subscriptionService.doesSubscriptionExist(email)) {
-        req.log.warn(`Subscription already exists for email ${email}`)
+        let error = `No confirmation could be found for thumbprint ${thumbprint}. Either it never did, or it was used already.`
+        req.log.warn(error)
+        await this.linkService.removeConfirmationLink(email)
+        reply
+            .code(400)
+            .send({ error })
         return
     }
     const name = record.name
@@ -86,7 +98,7 @@ async function confirmSubscription(req, reply) {
     await this.linkService.removeConfirmationLink(email)
 
     return {
-        sucess: true
+        success: true
     }
 }
 
@@ -95,7 +107,7 @@ async function removeSubscription(req, reply) {
     const record = await this.linkService.getUnsubscribeLinkByThumbprint(thumbprint)
     if (!record) {
         reply
-            .code(404)
+            .code(400)
             .send({
                 error: `No subscription could be found for thumbprint ${thumbprint}. Either it never did, or it was used already.`
             })
@@ -115,17 +127,13 @@ async function removeSubscription(req, reply) {
     await this.emailService.send(createFullToAddress(name, email), emailGenerated.text, emailGenerated.html)
 
     return {
-        sucess: true
+        success: true
     }
-}
-
-function generateThumbprint() {
-    return randomstring.generate({
-        length: 40,
-        charset: 'alphabetic'
-    });
 }
 
 function createFullToAddress(name, email) {
     return `"${name}" <${email}>`
+}
+module.exports["modules"] = {
+    addSubscription, confirmSubscription, removeSubscription
 }

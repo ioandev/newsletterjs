@@ -18,7 +18,7 @@ const subscription = {
     }
 }
 const thumbprint = {
-    querystring: {
+    query: {
         thumbprint: { type: 'string' }
     }
 }
