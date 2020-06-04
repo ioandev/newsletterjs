@@ -23,7 +23,7 @@ async function main() {
     await fastifyInitialiser(app, process.env)
     app.listen(port, hostname, err => {
         if (err) {
-            app.log.error(err)
+            app.log.error(err) // TODO: this is not getting outputed to supervisor error log.
             process.exit(1)
         }
         console.log(`server listening on ${app.server.address().port}`);

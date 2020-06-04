@@ -37,7 +37,7 @@ class LinkService {
     }
 
     async insertConfirmationLinkifNotAlreadyExists(email, document) {
-        const record = this.findInCollection(email, TYPE_CONFIRMATION)
+        const record = await this.findInCollection(email, TYPE_CONFIRMATION)
         if (record) {
             return record.thumbprint
         }
@@ -51,7 +51,7 @@ class LinkService {
     }
 
     async insertUnsubscribeLinkifNotAlreadyExists(email, document) {
-        const record = this.findInCollection(email, TYPE_UNSUBSCRIBE)
+        const record = await this.findInCollection(email, TYPE_UNSUBSCRIBE)
         if (record) {
             return record.thumbprint
         }

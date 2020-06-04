@@ -47,7 +47,8 @@ async function addSubscription(req, reply) {
         return
     }
     
-    const anyExistingLinks = this.linkService.findAny(email)
+    const anyExistingLinks = await this.linkService.findAny(email)
+    console.log("anyExistingLinks", anyExistingLinks)
     const confirmThumbprint =
         await this.linkService.insertConfirmationLinkifNotAlreadyExists(email, {
             name,
