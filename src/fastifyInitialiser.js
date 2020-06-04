@@ -1,9 +1,9 @@
-import path from "path"
 import fp from "fastify-plugin"
 import LinkService from "./services/linkService"
 import EmailService from "./services/emailService"
 import SubscriptionService from "./services/subscriptionService"
-import randomstring from "randomstring"
+import {censorEmail} from "./helper"
+import { v4 as uuidv4 } from 'uuid';
 
 const schema = {
     type: 'object',
@@ -17,10 +17,7 @@ const schema = {
 }
 
 function uniqueThumbprintGenerator() {
-    return randomstring.generate({
-        length: 40,
-        charset: 'alphabetic'
-    });
+    return uuidv4()
 }
 
 function getSwaggerOptions() {
@@ -57,7 +54,7 @@ async function decorateFastifyInstance(fastify) {
     fastify.decorate('emailService', emailService)
 
     const linkCollection = await db.createCollection('links')
-    const linkService = new LinkService(linkCollection, fastify.log)
+    const linkService = new LinkService(censorEmail, linkCollection, fastify.log)
     await linkService.ensureIndexes(db)
     fastify.decorate('linkService', linkService)
 
@@ -67,6 +64,7 @@ async function decorateFastifyInstance(fastify) {
 
     // utility
     fastify.decorate('uniqueThumbprintGenerator', uniqueThumbprintGenerator)
+    fastify.decorate('censorEmail', censorEmail)
 }
 
 async function decorateErrorHandlers(fastify) {

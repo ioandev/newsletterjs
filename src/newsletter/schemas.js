@@ -17,12 +17,46 @@ const subscription = {
         additionalProperties: false
     }
 }
+
 const thumbprint = {
     query: {
         thumbprint: { type: 'string' }
     }
 }
+
+const sendEmailToSubscribers = {
+    body: {
+        type: 'object',
+        required: ['subject', 'text'],
+        properties: {
+            subject: {
+                type: 'string',
+                minLength: 3,
+            },
+            text: {
+                type: 'string',
+                minLength: 10,
+            },
+            html: {
+                type: 'string',
+                minLength: 10,
+            },
+            utm_source: {
+                type: 'string',
+            },
+            utm_medium: {
+                type: 'string',
+            },
+            utm_campaign: {
+                type: 'string',
+            }
+        },
+        additionalProperties: false
+    }
+}
+
 export {
     subscription,
-    thumbprint
+    thumbprint,
+    sendEmailToSubscribers
 }

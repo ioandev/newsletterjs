@@ -1,8 +1,10 @@
 export const TYPE_CONFIRMATION = "confirmation"
 export const TYPE_UNSUBSCRIBE = "unsubscribe"
 
+
 class LinkService {
-    constructor(collection, log) {
+    constructor(censorEmail, collection, log) {
+        this.censorEmail = censorEmail
         this.collection = collection;
         this.log = log
     }
@@ -21,17 +23,27 @@ class LinkService {
         })
     }
 
-    async insertConfirmationLinkifNotAlreadyExists(email, document) {
-        let record = await this.collection.findOne({
+    async findInCollection(email, type) {
+        return await this.collection.findOne({
             email: email,
-            type: TYPE_CONFIRMATION
+            type: type
         })
+    }
+
+    async findAny(email) {
+        return await this.collection.findOne({
+            email: email
+        }) != null
+    }
+
+    async insertConfirmationLinkifNotAlreadyExists(email, document) {
+        const record = this.findInCollection(email, TYPE_CONFIRMATION)
         if (record) {
             return record.thumbprint
         }
 
         document.type = TYPE_CONFIRMATION
-        this.log.info(`Did not find a confirmation record for email ${email}, inserting one with thumprint ${document.thumbprint}`)
+        this.log.info(`Did not find a confirmation record for email ${this.censorEmail(email)}, inserting one with thumprint ${document.thumbprint}`)
         await this.collection.insertOne(document, {
             w: 1
         })
@@ -39,17 +51,13 @@ class LinkService {
     }
 
     async insertUnsubscribeLinkifNotAlreadyExists(email, document) {
-        let findBy = {
-            email: email,
-            type: TYPE_UNSUBSCRIBE
-        }
-        let record = await this.collection.findOne(findBy)
+        const record = this.findInCollection(email, TYPE_UNSUBSCRIBE)
         if (record) {
             return record.thumbprint
         }
 
         document.type = TYPE_UNSUBSCRIBE
-        this.log.info(`Did not find an unsubscribe link for email ${email}, inserting one with thumprint ${document.thumbprint}`)
+        this.log.info(`Did not find an unsubscribe link for email ${this.censorEmail(email)}, inserting one with thumprint ${document.thumbprint}`)
         await this.collection.insertOne(document, {
             w: 1
         })

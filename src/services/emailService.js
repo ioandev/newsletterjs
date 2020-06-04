@@ -5,13 +5,15 @@ class EmailService {
         this.log = log
     }
 
-    async send(to, text, html) {
+    async send(to, subject, text, html) {
         let data = {
-            subject: process.env.EMAIL_API_SUBJECT,
+            subject,
             from: process.env.EMAIL_API_FROM,
             to,
             text,
-            html
+        }
+        if (html != undefined) {
+            data.html = html
         }
 
         this.log.info("Going to send an email..", data.text)

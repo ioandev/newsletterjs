@@ -3,10 +3,14 @@ class SubscriptionService {
         this.collection = collection;
     }
 
+    async getAllSubscribers() {
+        return this.collection.find().toArray()
+    }
+
     async doesSubscriptionExist(email) {
         let record = await this.collection.findOne({
             email: email
-        });
+        })
         return record != null
     }
 

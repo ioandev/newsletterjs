@@ -6,7 +6,8 @@ import {
 from '../emailGenerator'
 import {
     subscription as subscriptionSchema,
-    thumbprint as thumbprintSchema
+    thumbprint as thumbprintSchema,
+    sendEmailToSubscribers as sendEmailToSubscribersSchema
 }
 from './schemas'
 
@@ -20,6 +21,10 @@ module.exports = async function (fastify, opts) {
     fastify.get('/unsubscribe', {
         schema: thumbprintSchema
     }, removeSubscription)
+    fastify.post('/broadcast', {
+        schema: sendEmailToSubscribersSchema
+    }, sendEmailToSubscribers)
+    
 }
 
 module.exports[Symbol.for('plugin-meta')] = {
@@ -36,11 +41,13 @@ async function addSubscription(req, reply) {
     if (await this.subscriptionService.doesSubscriptionExist(email)) {
         reply
             .code(400)
-                .send({
-                    error: `A subscription already exists for email address ${email}`
-                })
+            .send({
+                error: `A subscription already exists for email address ${email}`
+            })
         return
     }
+    
+    const anyExistingLinks = this.linkService.findAny(email)
     const confirmThumbprint =
         await this.linkService.insertConfirmationLinkifNotAlreadyExists(email, {
             name,
@@ -53,10 +60,13 @@ async function addSubscription(req, reply) {
             email,
             thumbprint: this.uniqueThumbprintGenerator()
         })
-    const confirmLink = process.env.NEWSLETTER_CONFIRM_URL.replace("[THUMBPRINT]", confirmThumbprint)
-    const unsubscribeLink = process.env.NEWSLETTER_UNSUBSCRIBE_URL.replace("[THUMBPRINT]", unsubscribeThumbprint)
-    const emailGenerated = await generateConfirmationEmail(name, confirmLink, unsubscribeLink)
-    await this.emailService.send(createFullToAddress(name, email), emailGenerated.text, emailGenerated.html)
+
+    if (!anyExistingLinks) {
+        const confirmLink = process.env.NEWSLETTER_CONFIRM_URL.replace("[THUMBPRINT]", confirmThumbprint)
+        const unsubscribeLink = process.env.NEWSLETTER_UNSUBSCRIBE_URL.replace("[THUMBPRINT]", unsubscribeThumbprint)
+        const emailGenerated = await generateConfirmationEmail(name, confirmLink, unsubscribeLink)
+        await this.emailService.send(createFullToAddress(name, email), process.env.EMAIL_API_JOIN_SUBJECT, emailGenerated.text, emailGenerated.html)
+    }
 
     return {
         success: true
@@ -92,18 +102,19 @@ async function confirmSubscription(req, reply) {
         subscribed_at: new Date()
     };
 
-    req.log.info(`Inserting new subscription for email ${email} and name ${name}`)
+    req.log.info(`Inserting new subscription for email ${this.censorEmail(email)} and name ${name}`)
     await this.subscriptionService.insertSubscription(document)
-    req.log.info(`Removing confirmation link for email ${email} and name ${name}`)
+    req.log.info(`Removing confirmation link for email ${this.censorEmail(email)} and name ${name}`)
     await this.linkService.removeConfirmationLink(email)
 
     return {
         success: true
     }
 }
-
 async function removeSubscription(req, reply) {
-    const {thumbprint} = req.query;
+    const {
+        thumbprint
+    } = req.query;
     const record = await this.linkService.getUnsubscribeLinkByThumbprint(thumbprint)
     if (!record) {
         reply
@@ -115,16 +126,73 @@ async function removeSubscription(req, reply) {
     }
     const email = record.email
     const name = record.name
-    req.log.info(`Removing link for email ${email}`)
+    req.log.info(`Removing link for email ${this.censorEmail(email)}`)
     await this.linkService.removeAllLinksForEmail(email)
 
-    req.log.info(`Removing subscription for email ${email}`)
+    req.log.info(`Removing subscription for email ${this.censorEmail(email)}`)
     await this.subscriptionService.removeSubscription(email)
 
     const survey_link = process.env.UNSUBSCRIBE_FEEDBACK_URL
     const homepage_link = process.env.HOMEPAGE_URL
     const emailGenerated = await generateUnsubscribeFeedbackEmail(name, survey_link, homepage_link)
-    await this.emailService.send(createFullToAddress(name, email), emailGenerated.text, emailGenerated.html)
+    await this.emailService.send(createFullToAddress(name, email), process.env.EMAIL_API_UNSUBSCRIBE_SUBJECT, emailGenerated.text, emailGenerated.html)
+
+    return {
+        success: true
+    }
+}
+
+const cheerio = require('cheerio')
+async function sendEmailToSubscribers(req, reply) {
+    const {
+        subject,
+        text,
+        html,
+        utm_source,
+        utm_medium,
+        utm_campaign
+    } = req.body;
+
+    if (subject == null) {
+        throw `subject could not be empty`
+    }
+
+    const subscribers = await this.subscriptionService.getAllSubscribers()
+    req.log.info(`Sending broadcast to ${subscribers.length} subscribers`)
+    for (const s of subscribers) {
+        let to = createFullToAddress(s.name, s.email)
+        let textParsed = text.replace("%name%", s.name)
+
+        if (html != undefined) {
+            let htmlParsed = html.replace("%name%", s.name)
+
+            const $ = cheerio.load(htmlParsed, {
+                withDomLvl1: false,
+                normalizeWhitespace: false,
+                xmlMode: true,
+                decodeEntities: false
+            })
+            $('a').each((_, a) => {
+                let query = {}
+                if (utm_source != null)
+                    query["utm_source"] = utm_source
+                if (utm_medium != null)
+                    query["utm_medium"] = utm_medium
+                if (utm_campaign != null)
+                    query["utm_campaign"] = utm_campaign
+
+                if (Object.keys(query).length == 0) {
+                    return;
+                }
+                a.attribs["href"] = this.urlHelper(a.attribs["href"], query)
+            })
+
+            await this.emailService.send(to, subject, textParsed, $.html())
+            continue
+        }
+
+        await this.emailService.send(to, subject, textParsed)
+    }
 
     return {
         success: true
@@ -135,5 +203,5 @@ function createFullToAddress(name, email) {
     return `"${name}" <${email}>`
 }
 module.exports["modules"] = {
-    addSubscription, confirmSubscription, removeSubscription
+    addSubscription, confirmSubscription, removeSubscription, sendEmailToSubscribers
 }

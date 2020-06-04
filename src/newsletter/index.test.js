@@ -1,8 +1,17 @@
 const {
     addSubscription,
     confirmSubscription,
-    removeSubscription
+    removeSubscription,
+    sendEmailToSubscribers
 } = require('./index').modules
+
+import urlHelper from '../urlHelper'
+
+import dotenv from 'dotenv'
+import path from 'path'
+const config = dotenv.config({
+    path: path.resolve(process.cwd(), '.env.test')
+}).parsed
 
 describe("newsletter.index.js", () => {
     process.env.NEWSLETTER_CONFIRM_URL = "[THUMBPRINT]"
@@ -17,13 +26,14 @@ describe("newsletter.index.js", () => {
         expect(reply.code).toHaveBeenCalledTimes(1);
         expect(reply.send).toHaveBeenCalledTimes(1);
     }
-    let request = function(o) {
+    let request = async function(f, o, reply) {
+        let fBound = getBound(f)
         o.log = {
             info: jest.fn(),
             warn: jest.fn(),
             error: jest.fn(),
         }
-        return o
+        return await fBound(o, reply)
     }
 
     beforeEach(() => {
@@ -31,7 +41,8 @@ describe("newsletter.index.js", () => {
             subscriptionService: {
                 doesSubscriptionExist: jest.fn(),
                 insertSubscription: jest.fn(),
-                removeSubscription: jest.fn()
+                removeSubscription: jest.fn(),
+                getAllSubscribers: jest.fn()
             },
             linkService: {
                 insertConfirmationLinkifNotAlreadyExists: jest.fn(),
@@ -43,7 +54,9 @@ describe("newsletter.index.js", () => {
             emailService: {
                 send: jest.fn()
             },
-            uniqueThumbprintGenerator: jest.fn().mockReturnValue("THUMBPRINT")
+            uniqueThumbprintGenerator: jest.fn().mockReturnValue("THUMBPRINT"),
+            urlHelper: urlHelper,
+            censorEmail: function(email) { return email }
         }
 
         reply = {
@@ -55,13 +68,12 @@ describe("newsletter.index.js", () => {
     describe("addSubscription", () => {
         it("returns http 400 if trying to add a subscription for what already exists", async () => {
             boundClass.subscriptionService.doesSubscriptionExist = jest.fn().mockReturnValue(true)
-            var addSubscriptionBound = getBound(addSubscription)
-            await addSubscriptionBound(request({
+            await request(addSubscription, {
                 body: {
                     name: "name1",
                     email: "name@example.com"
                 }
-            }), reply)
+            }, reply)
             expect(reply.code).toBeCalledWith(400)
             expect(reply.send).toBeCalledWith(expect.anything())
             expectReplyToHaveBeenCalledOnce()
@@ -69,13 +81,12 @@ describe("newsletter.index.js", () => {
 
         it("inserts confirmation link, unsubscribe link, and it sends an email", async () => {
             boundClass.subscriptionService.doesSubscriptionExist = jest.fn().mockReturnValue(false)
-            var addSubscriptionBound = getBound(addSubscription)
-            const result = await addSubscriptionBound(request({
+            const result = await request(addSubscription, {
                 body: {
                     name: "name1",
                     email: "name@example.com"
                 }
-            }), reply)
+            }, reply)
             expect(result).toStrictEqual({
                 success: true
             })
@@ -90,19 +101,18 @@ describe("newsletter.index.js", () => {
                 "name": "name1",
                 "thumbprint": "THUMBPRINT"
             })
-            expect(boundClass.emailService.send).toBeCalledWith("\"name1\" <name@example.com>", expect.anything(), expect.anything())
+            expect(boundClass.emailService.send).toBeCalledWith("\"name1\" <name@example.com>", process.env.EMAIL_API_JOIN_SUBJECT, expect.anything(), expect.anything())
         })
     })
 
     describe("confirmSubscription", () => {
         it("returns http 400 if trying to confirm subscription for a thumbprint that does not exist", async () => {
             boundClass.linkService.getConfirmationLinkByThumbprint = jest.fn().mockReturnValue(null)
-            var confirmSubscriptionBound = getBound(confirmSubscription)
-            await confirmSubscriptionBound(request({
+            await request(confirmSubscription, {
                 query: {
                     thumbprint: "name1"
                 }
-            }), reply)
+            }, reply)
             expect(reply.code).toBeCalledWith(400)
             expect(reply.send).toBeCalledWith(expect.anything())
             expectReplyToHaveBeenCalledOnce()
@@ -115,12 +125,11 @@ describe("newsletter.index.js", () => {
                 "name": "name1",
                 "thumbprint": "THUMBPRINT"
             })
-            var confirmSubscriptionBound = getBound(confirmSubscription)
-            await confirmSubscriptionBound(request({
+            await request(confirmSubscription, {
                 query: {
                     thumbprint: "name1"
                 }
-            }), reply)
+            }, reply)
             expect(boundClass.linkService.removeConfirmationLink).toBeCalledWith("name@example.com")
             expect(reply.code).toBeCalledWith(400)
             expect(reply.send).toBeCalledWith(expect.anything())
@@ -132,12 +141,11 @@ describe("newsletter.index.js", () => {
                 "name": "name1",
                 "thumbprint": "THUMBPRINT"
             })
-            var confirmSubscriptionBound = getBound(confirmSubscription)
-            const result = await confirmSubscriptionBound(request({
+            const result = await request(confirmSubscription, {
                 query: {
                     thumbprint: "name1"
                 }
-            }), reply)
+            }, reply)
             expect(boundClass.subscriptionService.insertSubscription).toBeCalledWith({
                 "email": "name@example.com",
                 "name": "name1",
@@ -153,12 +161,11 @@ describe("newsletter.index.js", () => {
     describe("removeSubscription", () => {
         it("returns http 404 if trying to unsubscribe with a thumbprint that does not exist", async () => {
             boundClass.linkService.getUnsubscribeLinkByThumbprint = jest.fn().mockReturnValue(null)
-            var removeSubscriptionBound = getBound(removeSubscription)
-            await removeSubscriptionBound(request({
+            await request(removeSubscription, {
                 query: {
                     thumbprint: "name1"
                 }
-            }), reply)
+            }, reply)
             expect(reply.code).toBeCalledWith(400)
             expect(reply.send).toBeCalledWith(expect.anything())
             expectReplyToHaveBeenCalledOnce()
@@ -170,17 +177,94 @@ describe("newsletter.index.js", () => {
                 "name": "name1",
                 "thumbprint": "THUMBPRINT"
             })
-            var removeSubscriptionBound = getBound(removeSubscription)
-            const result = await removeSubscriptionBound(request({
+            const result = await request(removeSubscription, {
                 query: {
                     thumbprint: "name1"
                 }
-            }), reply)
+            }, reply)
             expect(boundClass.linkService.removeAllLinksForEmail).toBeCalledWith("name@example.com")
             expect(boundClass.subscriptionService.removeSubscription).toBeCalledWith("name@example.com")
             expect(result).toStrictEqual({
                 success: true
             })
+        })
+    })
+
+    describe("sendEmailToSubscribers", () => {
+        it("sends email to all subscribers", async () => {
+            boundClass.subscriptionService.getAllSubscribers = jest.fn().mockReturnValue([{
+                "email": "name1@example.com",
+                "name": "name1",
+            }, {
+                "email": "name2@example.com",
+                "name": "name2",
+            }, ])
+            await request(sendEmailToSubscribers, {
+                body: {
+                    subject: "spring",
+                    text: "TEXT",
+                    html: "<b>TEXT</b>",
+                }
+            }, reply)
+            expect(boundClass.emailService.send).toBeCalledWith("\"name1\" <name1@example.com>", "spring", "TEXT", "<b>TEXT</b>")
+            expect(boundClass.emailService.send).toBeCalledWith("\"name2\" <name2@example.com>", "spring", "TEXT", "<b>TEXT</b>")
+        })
+
+        it("replaces the name of the subscriber", async () => {
+            boundClass.subscriptionService.getAllSubscribers = jest.fn().mockReturnValue([{
+                "email": "name1@example.com",
+                "name": "name1",
+            }])
+            await request(sendEmailToSubscribers, {
+                body: {
+                    subject: "Random email",
+                    text: "Hi %name%, how are you?",
+                    html: "<b>Hi %name%, how are you?</b>",
+                }
+            }, reply)
+            let to = "\"name1\" <name1@example.com>"
+            let text = "Hi name1, how are you?"
+            let html = `<b>${text}</b>`
+            expect(boundClass.emailService.send).toBeCalledWith(to, "Random email", text, html)
+        })
+
+        it("adds campaign data to all links", async () => {
+            boundClass.subscriptionService.getAllSubscribers = jest.fn().mockReturnValue([{
+                "email": "name1@example.com",
+                "name": "name1",
+            }])
+            await request(sendEmailToSubscribers, {
+                body: {
+                    subject: "paris",
+                    text: "Hi %name%, how are you? Click Here [https://google.com/]",
+                    html: "<b>Hi %name%, how are you? <a href=\"https://google.com/\">Click here</a></b>",
+                    utm_source: "news",
+                    utm_medium: "email",
+                    utm_campaign: "spring-summer"
+                }
+            }, reply)
+            let to = "\"name1\" <name1@example.com>"
+            let text = "Hi name1, how are you? Click Here [https://google.com/]"
+            let html = "<b>Hi name1, how are you? <a href=\"https://google.com/?utm_source=news&utm_medium=email&utm_campaign=spring-summer\">Click here</a></b>"
+            expect(boundClass.emailService.send).toBeCalledWith(to, "paris", text, html)
+        })
+
+        it("adds campaign data to all links", async () => {
+            boundClass.subscriptionService.getAllSubscribers = jest.fn().mockReturnValue([{
+                "email": "name1@example.com",
+                "name": "name1",
+            }])
+            await request(sendEmailToSubscribers, {
+                body: {
+                    subject: "Some email",
+                    text: "Hi %name%, how are you? Click Here [https://google.com/]",
+                    html: "<b>Hi %name%, how are you? <a href=\"https://google.com/\">Click here</a></b>",
+                }
+            }, reply)
+            let to = "\"name1\" <name1@example.com>"
+            let text = "Hi name1, how are you? Click Here [https://google.com/]"
+            let html = "<b>Hi name1, how are you? <a href=\"https://google.com/\">Click here</a></b>"
+            expect(boundClass.emailService.send).toBeCalledWith(to, "Some email", text, html)
         })
     })
 })

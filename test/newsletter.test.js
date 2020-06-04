@@ -13,13 +13,13 @@ const Fastify = require('fastify')
 import { parse } from 'node-html-parser';
 
 // TODO: move Logger to a different file
-function isJestRunningThisCode() {
-    return process.env.JEST_WORKER_ID !== undefined;
+function isWallabyRunningThisCode() {
+    return process.env.WALLABY_ENV !== undefined;
 }
 function Logger(...args) {
   this.args = args;
 }
-if (isJestRunningThisCode()) {
+if (!isWallabyRunningThisCode()) {
     Logger.prototype.info = jest.fn()
     Logger.prototype.error = jest.fn()
     Logger.prototype.debug = jest.fn()
@@ -39,7 +39,7 @@ Logger.prototype.child = function () { return new Logger() };
 describe("newsletter integration tests", () => {
     let mongoClient = null
     let fastify = null
-    beforeEach(async() => { 
+    beforeEach(async() => {
         mongoClient = await MongoClient.connect(config.MONGODB_CONNECTION_STRING, {
             useNewUrlParser: true,
             useUnifiedTopology: true
@@ -74,7 +74,7 @@ describe("newsletter integration tests", () => {
         expect(invalidDataResponse.statusCode).toBe(400)
     })
 
-    it("works on happy path", async () => {
+    it.only("works on happy path", async () => {
         const subscribeResponse = await fastify.inject({
             method: 'POST',
             url: '/api/newsletter/subscribe',
@@ -85,7 +85,17 @@ describe("newsletter integration tests", () => {
         })
         expect(subscribeResponse.statusCode).toBe(200)
 
-        const emailHtml = fastify.emailService.send.mock.calls[0][2]
+        const subscribeResponse2 = await fastify.inject({
+            method: 'POST',
+            url: '/api/newsletter/subscribe',
+            payload: {
+                name: "Alexa",
+                email: "alexa@google.com"
+            }
+        })
+        expect(subscribeResponse2.statusCode).toBe(200)
+
+        const emailHtml = fastify.emailService.send.mock.calls[0][3]
         const root = parse(emailHtml)
         const confirmElement = root.querySelector('.confirm')
         const confirmThumbprint = confirmElement.getAttribute('href')
@@ -101,6 +111,23 @@ describe("newsletter integration tests", () => {
         })
         expect(confirmResponse.statusCode).toBe(200)
 
+        fastify.emailService.send.mockReset()
+        const broadcastResponse = await fastify.inject({
+            method: 'POST',
+            url: '/api/newsletter/broadcast',
+            body: {
+                subject: "A subject title",
+                text: "Hi %name%, \n\nhow are you?",
+                body: "<b>Hi %name%</b>, \n\nhow are you?",
+                utm_source: "email",
+                utm_medium: "email",
+                utm_campaign: "newsletter"
+            }
+        })
+        expect(broadcastResponse.statusCode).toBe(200)
+        expect(fastify.emailService.send.mock.calls).toEqual([["\"Alexa\" <alexa@google.com>", "A subject title", "Hi Alexa, \n\nhow are you?"]])
+
+        fastify.emailService.send.mockReset()
         const unsubscribeResponse = await fastify.inject({
             method: 'GET',
             url: '/api/newsletter/unsubscribe',
@@ -109,8 +136,7 @@ describe("newsletter integration tests", () => {
             }
         })
         expect(unsubscribeResponse.statusCode).toBe(200)
-
-        const emailHtml2 = fastify.emailService.send.mock.calls[1][2]
+        const emailHtml2 = fastify.emailService.send.mock.calls[0][3]
         const root2 = parse(emailHtml2)
         const surveyElement = root2.querySelector('.survey')
         const subscribeHrefLink = surveyElement.getAttribute('href')

@@ -6,7 +6,8 @@ module.exports = () => ({
         'src/*.test.js'
     ],
     reportConsoleErrorAsError: true,
-    runAllTestsInAffectedTestFile: true,
+    //runAllTestsInAffectedTestFile: true,
+    runAllTestsInAffectedTestFile: false,
     debug: true,
     env: {
         type: 'node',
