@@ -29,7 +29,7 @@
     "fastify-swagger": "^2.6.0",
     "html-to-text": "^5.1.1",
     "isobject": "^4.0.0",
-    "pug": "^3.0.0",
+    "pug": "^3.0.1",
     "uuid": "^8.1.0"
   },
   "devDependencies": {
